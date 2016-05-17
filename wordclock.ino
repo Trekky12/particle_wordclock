@@ -56,6 +56,7 @@ int controlColor(String command) {
         if (blue < 0 || blue > 255) return -1;
 
         color = strip.Color(red,green,blue);
+        EEPROM.put(1, color);
         display_time(hours_buffer, minutes_buffer);
         return 0;
     }
@@ -421,8 +422,16 @@ void display_time(int hours, int minutes){
 void setup() {
     strip.begin();
     strip.show();
-
     Time.zone(2);
+    
+    // if color not saved, save it
+    if(EEPROM.read(0) != 1){
+      EEPROM.write(0, 1);
+      EEPROM.put(1, color);
+
+    }else{
+      EEPROM.get(1, color);
+    }
 
     //Spark.variable("hour", &hours_buffer, INT);
     //Spark.variable("minute", &minutes_buffer, INT);
