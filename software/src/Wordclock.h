@@ -5,6 +5,22 @@
 
 SYSTEM_THREAD(ENABLED);
 
+
+
+#define WORDCLOCK_VERSION 20180917
+
+//----------------- LED AND LDR Handling ------------------------
+#define PIXEL_PIN A5
+#define PIXEL_COUNT 97
+#define PIXEL_TYPE WS2812B
+#define LDR_PIN A1
+
+// after CONNECTION_TIMEOUT ms the listening mode is started
+#define CONNECTION_TIMEOUT 20000
+
+//sync every 4 hours
+#define SYNC_INTERVAL 4*60*60
+
 //------------- Wordclock --------------
 
 class Wordclock {
@@ -30,11 +46,18 @@ class Wordclock {
     getColor(String cmd),
     setTimeZone(String cmd),
     setClockStatus(String cmd),
-    controlColor(String cmd);
+    controlColor(String cmd),
+    listen(String cmd),
+    getVersion(String cmd);
 
 
   private:
-    uint32_t color;
+    uint32_t
+        lastSync = 0,
+        hours_buffer = 0,
+        minutes_buffer = 0,
+        color,
+        version = WORDCLOCK_VERSION;
     unsigned long startConnection = millis();
     void
         display_time(int hours, int minutes),
@@ -45,12 +68,10 @@ class Wordclock {
         showClock = true,
         clockState = true,
         wlanOff = false,
+        disableWiFiNow = false,
         autoBrightness = true,
         hasCredentials = false; // lets asume we don't have the credentials
     uint8_t
-        hours_buffer,
-        minutes_buffer,
-        lastSync = 0,
         wlanOffTimeH = 255, // bigger than 24 means not set
         wlanOffTimeM = 0,
         wlanOffTimeS = 0,
@@ -60,15 +81,5 @@ class Wordclock {
         splitColor(char value);
 
 };
-
-
-//----------------- LED AND LDR Handling ------------------------
-#define PIXEL_PIN A5
-#define PIXEL_COUNT 97
-#define PIXEL_TYPE WS2812B
-#define LDR_PIN A1
-
-#define CONNECTION_TIMEOUT 20000
-
 
 #endif // Wordclock_h

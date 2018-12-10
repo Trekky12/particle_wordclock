@@ -4,9 +4,6 @@
 
 Adafruit_NeoPixel strip(PIXEL_COUNT, PIXEL_PIN, PIXEL_TYPE);
 
-//sync every  4 hours
-const int syncInterval = 60*60*4;
-
 // make mean of LDR values
 const int LDR_Messungen_Anzahl = 50;
 int LDR_Messungen[LDR_Messungen_Anzahl];
@@ -59,12 +56,6 @@ void Wordclock::begin(){
 
     //Particle.variable("hour", &hours_buffer, INT);
     //Particle.variable("minute", &minutes_buffer, INT);
-    Particle.function("setTimeZone", &Wordclock::setTimeZone, this);
-    Particle.function("setStatus", &Wordclock::setClockStatus, this);
-    Particle.function("controlColor", &Wordclock::controlColor, this);
-    Particle.function("getColor", &Wordclock::getColor, this);
-    Particle.function("disablewifi", &Wordclock::disableWiFi, this);
-
 
     Serial.println("Startup");
 
@@ -99,10 +90,15 @@ void Wordclock::update(){
     // Disable WiFi
     if(wlanOffTimeH < 24){
         if( ( Time.hour() == wlanOffTimeH) && (Time.minute() == wlanOffTimeM) && (Time.second() == wlanOffTimeS) && !wlanOff){
-            Serial.println(Time.now());
-            Serial.println("Disable WiFi");
-            setWiFiState(false);
+            disableWiFiNow = true;
         }
+    }
+    if(disableWiFiNow){
+        disableWiFiNow =  false;
+        Serial.println(Time.now());
+        Serial.println("Disable WiFi");
+        delay(1000);
+        setWiFiState(false);
     }
 
      // Enable WiFi
@@ -121,6 +117,20 @@ void Wordclock::update(){
 
         RGB.control(true);
         RGB.brightness(0);
+
+        Particle.function("setTimeZone", &Wordclock::setTimeZone, this);
+        Particle.function("setStatus", &Wordclock::setClockStatus, this);
+        Particle.function("controlColor", &Wordclock::controlColor, this);
+        Particle.function("getColor", &Wordclock::getColor, this);
+        Particle.function("disablewifi", &Wordclock::disableWiFi, this);
+        Particle.function("listen", &Wordclock::listen, this);
+        Particle.function("version", &Wordclock::getVersion, this);
+
+        //Particle.variable("h", hours_buffer);
+        //Particle.variable("m", minutes_buffer);
+
+        Particle.publish("register", Time.timeStr());
+
     }
 
     // No connection? => Go into listening mode
@@ -245,8 +255,18 @@ int Wordclock::getColor(String command){
 }
 
 int Wordclock::disableWiFi(String wlan){
-    setWiFiState(false);
+    disableWiFiNow = true;
     return 0;
+}
+
+int Wordclock::listen(String command){
+    WiFi.listen();
+    WiFi.setListenTimeout(0);
+    return 0;
+}
+
+int Wordclock::getVersion(String command){
+    return version;
 }
 
 
@@ -331,9 +351,10 @@ void Wordclock::adjustBrightness() {
 
 
  void Wordclock::adjustTime(){
-     if(lastSync + syncInterval < Time.now()) {
-        Particle.syncTime();
-        lastSync = Time.now();
+     if(WiFi.ready() && (lastSync + SYNC_INTERVAL < Time.now())) {
+         Particle.publish("sync", Time.timeStr());
+         Particle.syncTime();
+         lastSync = Time.now();
      }
  }
 
