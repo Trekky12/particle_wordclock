@@ -7,7 +7,7 @@ SYSTEM_THREAD(ENABLED);
 
 
 
-#define WORDCLOCK_VERSION 20180917
+#define WORDCLOCK_VERSION 20190818
 
 //----------------- LED AND LDR Handling ------------------------
 #define PIXEL_PIN A5
@@ -15,8 +15,8 @@ SYSTEM_THREAD(ENABLED);
 #define PIXEL_TYPE WS2812B
 #define LDR_PIN A1
 
-// after CONNECTION_TIMEOUT ms the listening mode is started
-#define CONNECTION_TIMEOUT 20000
+// after CONNECTION_TIMEOUT ms the listening mode is started (5 min)
+#define CONNECTION_TIMEOUT 5*60*1000
 
 //sync every 4 hours
 #define SYNC_INTERVAL 4*60*60
@@ -45,7 +45,7 @@ class Wordclock {
     disableWiFi(String cmd),
     getColor(String cmd),
     setTimeZone(String cmd),
-    setClockStatus(String cmd),
+    setClockLight(String cmd),
     controlColor(String cmd),
     listen(String cmd),
     getVersion(String cmd);
@@ -63,14 +63,16 @@ class Wordclock {
         display_time(int hours, int minutes),
         adjustBrightness(void),
         adjustTime(void),
-        allLedsOff(void);
+        allLedsOff(void),
+        handleLocalServer(void);
     bool
         showClock = true,
         clockState = true,
         wlanOff = false,
         disableWiFiNow = false,
         autoBrightness = true,
-        hasCredentials = false; // lets asume we don't have the credentials
+        hasCredentials = false, // lets asume we don't have the credentials
+        serverStarted = false;
     uint8_t
         wlanOffTimeH = 255, // bigger than 24 means not set
         wlanOffTimeM = 0,

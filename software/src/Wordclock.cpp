@@ -8,6 +8,9 @@ Adafruit_NeoPixel strip(PIXEL_COUNT, PIXEL_PIN, PIXEL_TYPE);
 const int LDR_Messungen_Anzahl = 50;
 int LDR_Messungen[LDR_Messungen_Anzahl];
 
+// Local TCP Server
+TCPServer server = TCPServer(23);
+TCPClient server_client;
 
 Wordclock::Wordclock(){
 
@@ -46,7 +49,7 @@ void Wordclock::begin(){
 
     pinMode(LDR_PIN, INPUT_PULLDOWN);
 
-    WiFi.setListenTimeout(30);
+    WiFi.setListenTimeout(60);
     System.set(SYSTEM_CONFIG_SOFTAP_PREFIX, "Wordclock");
 
     // Output LED
@@ -119,7 +122,7 @@ void Wordclock::update(){
         RGB.brightness(0);
 
         Particle.function("setTimeZone", &Wordclock::setTimeZone, this);
-        Particle.function("setStatus", &Wordclock::setClockStatus, this);
+        Particle.function("setLight", &Wordclock::setClockLight, this);
         Particle.function("controlColor", &Wordclock::controlColor, this);
         Particle.function("getColor", &Wordclock::getColor, this);
         Particle.function("disablewifi", &Wordclock::disableWiFi, this);
@@ -140,8 +143,11 @@ void Wordclock::update(){
         RGB.control(false);
 
         WiFi.listen();
-        WiFi.setListenTimeout(0);
+        //WiFi.setListenTimeout(0);
     }
+
+    // Handle Local server
+    handleLocalServer();
 }
 
 
@@ -239,7 +245,7 @@ int Wordclock::setTimeZone(String zone){
 
 // This function gets called whenever there is a matching API request
 // the command string format is the status of the leds ("on"/"off")
-int Wordclock::setClockStatus(String status){
+int Wordclock::setClockLight(String status){
     if (status == "off"){
         showClock = false;
     }else{
@@ -261,7 +267,7 @@ int Wordclock::disableWiFi(String wlan){
 
 int Wordclock::listen(String command){
     WiFi.listen();
-    WiFi.setListenTimeout(0);
+    //WiFi.setListenTimeout(0);
     return 0;
 }
 
@@ -688,4 +694,67 @@ void Wordclock::display_time(int hours, int minutes){
      strip.show();
 
 
+ }
+
+void Wordclock::handleLocalServer(){
+     if (WiFi.ready()) {
+         if(!serverStarted){
+ 			server.begin();
+ 			serverStarted = true;
+         }
+
+         if (server_client.connected()) {
+ 			while(server_client.available()){
+ 			    char incoming = server_client.read();
+ 			    Serial.print(incoming);
+
+                // setLight on
+			    if(incoming == 'B'){
+                    showClock = true;
+                    display_time(hours_buffer, minutes_buffer);
+			    }
+                // setLight off
+			    if(incoming == 'C'){
+                    showClock = false;
+			    }
+                // disableWiFi
+                if(incoming == 'D'){
+			        disableWiFiNow = true;
+			    }
+                // Summer time
+                if(incoming == 'E'){
+                    uint8_t timezone = 1;
+                    EEPROM.put(0, timezone);
+                    Time.zone(timezone);
+                    update();
+			    }
+                // Winter time
+                if(incoming == 'F'){
+                    uint8_t timezone = 2;
+                    EEPROM.put(0, timezone);
+                    Time.zone(timezone);
+                    update();
+			    }
+
+                // Debug
+                if(incoming == 'X'){
+			        digitalWrite(D7, HIGH);
+			    }
+			    if(incoming == 'Y'){
+			        digitalWrite(D7, LOW);
+			    }
+ 			    server_client.write(incoming);
+ 			}
+ 			server_client.stop();
+           } else {
+             server_client = server.available();
+           }
+     }else{
+         if(serverStarted){
+            Serial.println("server stop");
+            server_client.stop();
+ 			server.stop();
+ 			serverStarted = false;
+         }
+     }
  }
