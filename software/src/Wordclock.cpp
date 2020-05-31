@@ -52,8 +52,10 @@ void Wordclock::begin(){
 
     pinMode(LDR_PIN, INPUT_PULLDOWN);
 
-    WiFi.setListenTimeout(60);
-    System.set(SYSTEM_CONFIG_SOFTAP_PREFIX, "Wordclock");
+    #if Wiring_WiFi
+        WiFi.setListenTimeout(60);
+        System.set(SYSTEM_CONFIG_SOFTAP_PREFIX, "Wordclock");
+    #endif
 
     // Output LED
     pinMode(D7, OUTPUT);
@@ -82,7 +84,7 @@ void Wordclock::update(){
            hours_buffer = hours;
            minutes_buffer=minutes;
         }
-        if (WiFi.ready()) {
+        if (networkReady()) {
             adjustTime();
         }
         if(autoBrightness){
@@ -92,33 +94,33 @@ void Wordclock::update(){
         allLedsOff();
     }
 
-
-    // Disable WiFi
-    if(wlanOffTimeH < 24){
-        if( ( Time.hour() == wlanOffTimeH) && (Time.minute() == wlanOffTimeM) && (Time.second() == wlanOffTimeS) && !wlanOff){
-            disableWiFiNow = true;
+    # if Wiring_WiFi
+        // Disable WiFi
+        if(wlanOffTimeH < 24){
+            if( ( Time.hour() == wlanOffTimeH) && (Time.minute() == wlanOffTimeM) && (Time.second() == wlanOffTimeS) && !wlanOff){
+                disableWiFiNow = true;
+            }
         }
-    }
-    if(disableWiFiNow){
-        disableWiFiNow =  false;
-        Serial.println(Time.now());
-        Serial.println("Disable WiFi");
-        delay(1000);
-        setWiFiState(false);
-    }
-
-     // Enable WiFi
-    if(wlanOnTimeH < 24){
-        if( ( Time.hour() == wlanOnTimeH) && (Time.minute() == wlanOnTimeM) && (Time.second() == wlanOnTimeS) && wlanOff){
+        if(disableWiFiNow){
+            disableWiFiNow =  false;
             Serial.println(Time.now());
-            Serial.println("Enable WiFi");
-            setWiFiState(true);
+            Serial.println("Disable WiFi");
+            delay(1000);
+            setWiFiState(false);
         }
-    }
 
+        // Enable WiFi
+        if(wlanOnTimeH < 24){
+            if( ( Time.hour() == wlanOnTimeH) && (Time.minute() == wlanOnTimeM) && (Time.second() == wlanOnTimeS) && wlanOff){
+                Serial.println(Time.now());
+                Serial.println("Enable WiFi");
+                setWiFiState(true);
+            }
+        }
+    #endif
 
     // Apparently we already have the WiFi credentials
-    if(!hasCredentials && WiFi.ready()){
+    if(!hasCredentials && networkReady()){
         hasCredentials = true;
 
         RGB.control(true);
@@ -128,10 +130,14 @@ void Wordclock::update(){
         Particle.function("setLight", &Wordclock::setClockLight, this);
         Particle.function("controlColor", &Wordclock::controlColor, this);
         Particle.function("getColor", &Wordclock::getColor, this);
-        Particle.function("disablewifi", &Wordclock::disableWiFi, this);
-        Particle.function("listen", &Wordclock::listen, this);
         Particle.function("version", &Wordclock::getVersion, this);
         Particle.function("reset", &Wordclock::reset, this);
+        Particle.function("getBrightness", &Wordclock::getBrightness, this);
+
+        #if Wiring_WiFi
+            Particle.function("disablewifi", &Wordclock::disableWiFi, this);
+            Particle.function("listen", &Wordclock::listen, this);
+        #endif
 
         //Particle.variable("h", hours_buffer);
         //Particle.variable("m", minutes_buffer);
@@ -140,18 +146,20 @@ void Wordclock::update(){
 
     }
 
-    // No connection? => Go into listening mode
-    if(!wlanOff && !WiFi.ready() && !hasCredentials && (millis() - startConnection >= CONNECTION_TIMEOUT) ) {
+    #if Wiring_WiFi
+        // No connection? => Go into listening mode
+        if(!wlanOff && !WiFi.ready() && !hasCredentials && (millis() - startConnection >= CONNECTION_TIMEOUT) ) {
 
-        RGB.brightness(255);
-        RGB.control(false);
+            RGB.brightness(255);
+            RGB.control(false);
 
-        WiFi.listen();
-        //WiFi.setListenTimeout(0);
-    }
-
-    // Handle Local server
-    handleLocalServer();
+            WiFi.listen();
+            //WiFi.setListenTimeout(0);
+        }
+    
+        // Handle Local server
+        handleLocalServer();
+    #endif
 
     // Reset
     if ((lastResetTriggered > 0 && millis() - lastResetTriggered > RESET_DELAY)){
@@ -177,7 +185,8 @@ void Wordclock::setAutoBrightness(bool state){
 }
 
 void Wordclock::setBrightness(uint8_t value){
-    strip.setBrightness(value);
+    brightness = value;
+    strip.setBrightness(brightness);
     strip.show();
 }
 
@@ -274,14 +283,20 @@ int Wordclock::disableWiFi(String wlan){
     return 0;
 }
 
+#if Wiring_WiFi
 int Wordclock::listen(String command){
     WiFi.listen();
     //WiFi.setListenTimeout(0);
     return 0;
 }
+#endif
 
 int Wordclock::getVersion(String command){
     return version;
+}
+
+int Wordclock::getBrightness(String command){
+    return brightness;
 }
 
 int Wordclock::reset(String command){
@@ -314,8 +329,9 @@ uint8_t Wordclock::splitColor ( char value ){
     }
 }
 
-
+#if Wiring_WiFi
 void Wordclock::setWiFiState(bool state){
+    
     if(state){
         WiFi.on();
         Particle.connect();
@@ -326,11 +342,11 @@ void Wordclock::setWiFiState(bool state){
         wlanOff = true;
     }
 }
+#endif
 
 void Wordclock::adjustBrightness() {
 
-    uint8_t stripbrightness = 255;
-    int brightness = 0;
+    int ldr_brightness = 0;
 
 
     // LDR_Messungen-Puffer Inhalte weiterruecken
@@ -342,36 +358,35 @@ void Wordclock::adjustBrightness() {
 
     // LDR_Messungen-Puffer Inhalte addieren
     for (int i = 0; i < LDR_Messungen_Anzahl; i = i + 1) {
-        brightness = brightness + LDR_Messungen[i];
+        ldr_brightness = ldr_brightness + LDR_Messungen[i];
     }
-    brightness = brightness / LDR_Messungen_Anzahl; // gemittelten meanLDR errechnen
+    ldr_brightness = ldr_brightness / LDR_Messungen_Anzahl; // gemittelten meanLDR errechnen
 
      //brightness = map(analogRead(LDR_PIN), 0, 4095, 0, 100);
      //brightness = map(meanLDR, 0, 4095, 0, 100);
 
-     if (brightness < 20){
-         stripbrightness = 5;
-     }else if (brightness < 30){
-         stripbrightness = 10;
-     }else if (brightness < 100){
-         stripbrightness = 20;
-     }else if (brightness < 400){
-         stripbrightness = 100;
-     }else if (brightness < 1000){
-         stripbrightness = 100;
-     }else if (brightness < 1500){
-         stripbrightness = 150;
+     if (ldr_brightness < 20){
+         brightness = 5;
+     }else if (ldr_brightness < 30){
+         brightness = 10;
+     }else if (ldr_brightness < 100){
+         brightness = 20;
+     }else if (ldr_brightness < 400){
+         brightness = 100;
+     }else if (ldr_brightness < 1000){
+         brightness = 100;
+     }else if (ldr_brightness < 1500){
+         brightness = 150;
      }else{
-       stripbrightness = 255;
+       brightness = 255;
      }
 
-     strip.setBrightness(stripbrightness);
-     strip.show();
+     setBrightness(brightness);
  }
 
 
  void Wordclock::adjustTime(){
-     if(WiFi.ready() && (lastSync + SYNC_INTERVAL < Time.now())) {
+     if(networkReady() && (lastSync + SYNC_INTERVAL < Time.now())) {
          Particle.publish("sync", Time.timeStr());
          Particle.syncTime();
          lastSync = Time.now();
@@ -711,7 +726,7 @@ void Wordclock::display_time(int hours, int minutes){
  }
 
 void Wordclock::handleLocalServer(){
-     if (WiFi.ready()) {
+     if (networkReady()) {
          if(!serverStarted){
  			server.begin();
  			serverStarted = true;
@@ -771,4 +786,12 @@ void Wordclock::handleLocalServer(){
  			serverStarted = false;
          }
      }
+ }
+
+ bool Wordclock::networkReady(){
+     #if Wiring_WiFi
+        return WiFi.ready();
+    #elif Wiring_Cellular
+        return Cellular.ready();
+    #endif
  }

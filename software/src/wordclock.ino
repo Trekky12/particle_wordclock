@@ -2,7 +2,9 @@
  * Project Wordclock
  */
 #include "Wordclock.h"
-#include "mySoftAP.h"
+#if Wiring_WiFi
+    #include "mySoftAP.h"
+#endif
 
 Wordclock wc = Wordclock();
 

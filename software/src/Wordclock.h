@@ -7,7 +7,7 @@ SYSTEM_THREAD(ENABLED);
 
 STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
 
-#define WORDCLOCK_VERSION 20191124
+#define WORDCLOCK_VERSION 20200530
 
 //----------------- LED AND LDR Handling ------------------------
 #define PIXEL_PIN A5
@@ -52,6 +52,7 @@ class Wordclock {
     controlColor(String cmd),
     listen(String cmd),
     getVersion(String cmd),
+    getBrightness(String cmd),
     reset(String cmd);
 
 
@@ -62,6 +63,7 @@ class Wordclock {
         minutes_buffer = 0,
         color,
         version = WORDCLOCK_VERSION;
+    uint8_t brightness = 255;
     unsigned long startConnection = millis();
     unsigned long lastResetTriggered = 0;
     void
@@ -75,7 +77,8 @@ class Wordclock {
         disableWiFiNow = false,
         autoBrightness = true,
         hasCredentials = false, // lets asume we don't have the credentials
-        serverStarted = false;
+        serverStarted = false,
+        networkReady(void);
     uint8_t
         wlanOffTimeH = 255, // bigger than 24 means not set
         wlanOffTimeM = 0,
