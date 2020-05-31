@@ -5,9 +5,9 @@
 
 SYSTEM_THREAD(ENABLED);
 
+STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
 
-
-#define WORDCLOCK_VERSION 20190818
+#define WORDCLOCK_VERSION 20191124
 
 //----------------- LED AND LDR Handling ------------------------
 #define PIXEL_PIN A5
@@ -20,6 +20,9 @@ SYSTEM_THREAD(ENABLED);
 
 //sync every 4 hours
 #define SYNC_INTERVAL 4*60*60
+
+// reset Device
+#define RESET_DELAY 5 * 1000
 
 //------------- Wordclock --------------
 
@@ -48,7 +51,8 @@ class Wordclock {
     setClockLight(String cmd),
     controlColor(String cmd),
     listen(String cmd),
-    getVersion(String cmd);
+    getVersion(String cmd),
+    reset(String cmd);
 
 
   private:
@@ -59,6 +63,7 @@ class Wordclock {
         color,
         version = WORDCLOCK_VERSION;
     unsigned long startConnection = millis();
+    unsigned long lastResetTriggered = 0;
     void
         display_time(int hours, int minutes),
         adjustBrightness(void),
@@ -66,8 +71,6 @@ class Wordclock {
         allLedsOff(void),
         handleLocalServer(void);
     bool
-        showClock = true,
-        clockState = true,
         wlanOff = false,
         disableWiFiNow = false,
         autoBrightness = true,
@@ -82,6 +85,10 @@ class Wordclock {
         wlanOnTimeS = 0,
         splitColor(char value);
 
+    // https://community.particle.io/t/solved-retained-and-variable-of-class/20980/5
+    // https://stackoverflow.com/a/5019896
+    // http://www.cplusplus.com/forum/beginner/121441/
+    static bool showClock;
 };
 
 #endif // Wordclock_h

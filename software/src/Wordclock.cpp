@@ -12,6 +12,9 @@ int LDR_Messungen[LDR_Messungen_Anzahl];
 TCPServer server = TCPServer(23);
 TCPClient server_client;
 
+// set values of static variables
+retained bool Wordclock::showClock = true;
+
 Wordclock::Wordclock(){
 
 }
@@ -69,8 +72,8 @@ void Wordclock::update(){
 
     // Display Clock
     if(showClock && hasCredentials){
-        int hours = Time.hour() % 12;
-        int minutes = Time.minute();
+        uint32_t hours = Time.hour() % 12;
+        uint32_t minutes = Time.minute();
         //int hours = 4;
         //int minutes = 12;
 
@@ -128,6 +131,7 @@ void Wordclock::update(){
         Particle.function("disablewifi", &Wordclock::disableWiFi, this);
         Particle.function("listen", &Wordclock::listen, this);
         Particle.function("version", &Wordclock::getVersion, this);
+        Particle.function("reset", &Wordclock::reset, this);
 
         //Particle.variable("h", hours_buffer);
         //Particle.variable("m", minutes_buffer);
@@ -148,6 +152,11 @@ void Wordclock::update(){
 
     // Handle Local server
     handleLocalServer();
+
+    // Reset
+    if ((lastResetTriggered > 0 && millis() - lastResetTriggered > RESET_DELAY)){
+        System.reset();
+    }
 }
 
 
@@ -273,6 +282,11 @@ int Wordclock::listen(String command){
 
 int Wordclock::getVersion(String command){
     return version;
+}
+
+int Wordclock::reset(String command){
+    lastResetTriggered = millis();
+    return 0;
 }
 
 
